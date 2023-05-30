@@ -4,15 +4,13 @@ use std::{
 };
 
 fn main() {
-    let file = File::open("videos/video1.h264").unwrap();
-
-    let buf = BufReader::new(file);
-    let mut writer: Option<BufWriter<File>> = None;
+    let buf_reader = BufReader::new(File::open("videos/video1.h264").unwrap());
+    let mut buf_writer: Option<BufWriter<File>> = None;
 
     let mut continuous_zeros = 0;
-    let mut nal_index = 0;
+    let mut nalu_index = 0;
 
-    for byte in buf.bytes() {
+    for byte in buf_reader.bytes() {
         let b = byte.unwrap();
 
         assert!(continuous_zeros != 4, "Encountered invalid H.264 file");
@@ -22,47 +20,37 @@ fn main() {
             continue;
         }
 
-        if continuous_zeros == 2 || continuous_zeros == 3 {
-            if b == 0x01 {
-                if let Some(ref mut w) = writer {
-                    w.flush().unwrap();
-                }
-
-                writer = Some(BufWriter::new(
-                    File::create(format!("videos/video1.h264.{}", nal_index)).unwrap(),
-                ));
-                nal_index += 1;
-
-                for _ in 0..continuous_zeros {
-                    writer.as_mut().unwrap().write(&[0x00]).unwrap();
-                }
-                writer.as_mut().unwrap().write(&[0x01]).unwrap();
-                continuous_zeros = 0;
-                continue;
-            } else {
-                for _ in 0..continuous_zeros {
-                    writer
-                        .as_mut()
-                        .expect("Encountered invalid H.264 file")
-                        .write(&[0x00])
-                        .unwrap();
-                }
-                continuous_zeros = 0;
+        if b == 0x01 && (continuous_zeros == 2 || continuous_zeros == 3) {
+            if let Some(ref mut writer) = buf_writer {
+                writer.flush().unwrap();
             }
+
+            buf_writer = Some(BufWriter::new(
+                File::create(format!("videos/video1.h264.{}", nalu_index)).unwrap(),
+            ));
+            nalu_index += 1;
+
+            for _ in 0..continuous_zeros {
+                buf_writer.as_mut().unwrap().write(&[0x00]).unwrap();
+            }
+            buf_writer.as_mut().unwrap().write(&[0x01]).unwrap();
+            continuous_zeros = 0;
+            continue;
         }
-        match writer {
-            Some(ref mut w) => {
-                if continuous_zeros == 1 {
-                    w.write(&[0x00]).unwrap();
-                    continuous_zeros = 0;
+
+        match buf_writer {
+            Some(ref mut writer) => {
+                for _ in 0..continuous_zeros {
+                    writer.write(&[0x00]).unwrap();
                 }
-                w.write(&[b]).unwrap();
+                continuous_zeros = 0;
+                writer.write(&[b]).unwrap();
             }
-            None => panic!("no possible"),
+            None => panic!("Encountered invalid H.264 file"),
         }
     }
-    match writer {
-        None => return,
-        Some(ref mut w) => w.flush().unwrap(),
+
+    if let Some(ref mut writer) = buf_writer {
+        writer.flush().unwrap();
     }
 }
