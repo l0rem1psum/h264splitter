@@ -5,7 +5,7 @@ use std::{
 
 fn main() {
     let buf_reader = BufReader::new(File::open("videos/video1.h264").unwrap());
-    let mut buf_writer: Option<BufWriter<File>> = None;
+    let mut buf_writer  = None::<BufWriter<File>>;
 
     let mut continuous_zeros = 0;
     let mut nalu_index = 0;
@@ -26,16 +26,9 @@ fn main() {
             }
 
             buf_writer = Some(BufWriter::new(
-                File::create(format!("videos/video1.h264.{}", nalu_index)).unwrap(),
+                File::create(format!("temp/video1.h264.{}", nalu_index)).unwrap(),
             ));
             nalu_index += 1;
-
-            for _ in 0..continuous_zeros {
-                buf_writer.as_mut().unwrap().write(&[0x00]).unwrap();
-            }
-            buf_writer.as_mut().unwrap().write(&[0x01]).unwrap();
-            continuous_zeros = 0;
-            continue;
         }
 
         match buf_writer {
