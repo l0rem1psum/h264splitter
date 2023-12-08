@@ -1,14 +1,30 @@
+use clap::Parser;
 use std::{
-    fs::File,
+    path::PathBuf,
+    fs, fs::File,
     io::{BufReader, BufWriter, Read, Write},
 };
 
+#[derive(Parser, Debug)]
+#[command(author = "l0rem1psum", version, about, long_about = None)]
+struct Args {
+    #[arg(short, long)]
+    input: String,
+
+    #[arg(short, long)]
+    output_dir: String,
+}
 fn main() {
-    let buf_reader = BufReader::new(File::open("videos/video1.h264").unwrap());
+    let args = Args::parse();
+
+    let buf_reader = BufReader::new(File::open(&args.input).unwrap());
     let mut buf_writer  = None::<BufWriter<File>>;
 
     let mut continuous_zeros = 0;
     let mut nalu_index = 0;
+
+    let mut output_path = PathBuf::from(&args.output_dir);
+    fs::create_dir_all(&output_path).expect("Failed to create output directory");
 
     for byte in buf_reader.bytes() {
         let b = byte.unwrap();
@@ -25,9 +41,10 @@ fn main() {
                 writer.flush().unwrap();
             }
 
-            buf_writer = Some(BufWriter::new(
-                File::create(format!("temp/video1.h264.{}", nalu_index)).unwrap(),
-            ));
+            output_path.push(format!("part-{}.raw", nalu_index));
+            buf_writer = Some(BufWriter::new(File::create(&output_path).unwrap()));
+            output_path.pop();
+
             nalu_index += 1;
         }
 
